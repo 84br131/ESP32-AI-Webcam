@@ -5,9 +5,10 @@ let isModelLoaded = false;
 let serialPort = null;
 let writer = null;
 let isConnected = false;
+let selectedMicrocontroller = 'esp32';
+let modelUrl = '';
 
 // Configuración
-const MODEL_URL = './model/';
 const CONFIDENCE_THRESHOLD = 0.6; // 60%
 const BAUD_RATE = 115200;
 
@@ -15,19 +16,22 @@ const BAUD_RATE = 115200;
 const video = document.getElementById('webcam');
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
+const modelUrlInput = document.getElementById('modelUrl');
+const loadModelBtn = document.getElementById('loadModelBtn');
+const microcontrollerSelect = document.getElementById('microcontrollerSelect');
 const connectBtn = document.getElementById('connectBtn');
 const connectionStatus = document.getElementById('connectionStatus');
 const className = document.getElementById('className');
 const confidence = document.getElementById('confidence');
 const loading = document.getElementById('loading');
+const loadingText = document.getElementById('loadingText');
+const chatMessages = document.getElementById('chatMessages');
+const clearChatBtn = document.getElementById('clearChatBtn');
 
 // Inicializar la aplicación
 async function init() {
     try {
         console.log('Inicializando aplicación...');
-        
-        // Cargar modelo
-        await loadModel();
         
         // Inicializar cámara
         await setupCamera();
@@ -35,10 +39,10 @@ async function init() {
         // Configurar eventos
         setupEventListeners();
         
-        // Iniciar predicciones
-        predict();
-        
+        // Ocultar loading inicial
         loading.style.display = 'none';
+        
+        addChatMessage('Sistema iniciado correctamente. Configure el modelo para comenzar.', 'system');
         console.log('Aplicación inicializada correctamente');
         
     } catch (error) {
@@ -48,20 +52,42 @@ async function init() {
 }
 
 // Cargar modelo de Teachable Machine
-async function loadModel() {
+async function loadModel(url) {
     try {
-        console.log('Cargando modelo desde:', MODEL_URL);
+        if (!url) {
+            throw new Error('URL del modelo requerida');
+        }
+        
+        // Normalizar URL
+        let normalizedUrl = url.trim();
+        if (!normalizedUrl.endsWith('/')) {
+            normalizedUrl += '/';
+        }
+        
+        console.log('Cargando modelo desde:', normalizedUrl);
+        loadingText.textContent = 'Cargando modelo de IA...';
+        loading.style.display = 'flex';
         
         // Intentar cargar el modelo
-        model = await tmImage.load(MODEL_URL + 'model.json', MODEL_URL + 'metadata.json');
+        model = await tmImage.load(normalizedUrl + 'model.json', normalizedUrl + 'metadata.json');
         
         isModelLoaded = true;
+        modelUrl = normalizedUrl;
+        loading.style.display = 'none';
+        
         console.log('Modelo cargado correctamente');
         console.log('Clases del modelo:', model.getClassLabels());
         
+        addChatMessage(`Modelo cargado: ${model.getClassLabels().join(', ')}`, 'system');
+        
+        // Iniciar predicciones
+        predict();
+        
     } catch (error) {
         console.error('Error al cargar modelo:', error);
-        throw new Error('No se pudo cargar el modelo. Asegúrate de que los archivos model.json y metadata.json estén en la carpeta /model/');
+        loading.style.display = 'none';
+        showError('No se pudo cargar el modelo. Verifica que la URL sea correcta y contenga model.json y metadata.json');
+        addChatMessage('Error al cargar modelo: ' + error.message, 'error');
     }
 }
 
@@ -98,15 +124,54 @@ async function setupCamera() {
 
 // Configurar event listeners
 function setupEventListeners() {
+    loadModelBtn.addEventListener('click', () => {
+        const url = modelUrlInput.value.trim();
+        if (url) {
+            loadModel(url);
+        } else {
+            showError('Por favor ingresa una URL válida del modelo');
+        }
+    });
+    
+    microcontrollerSelect.addEventListener('change', (e) => {
+        selectedMicrocontroller = e.target.value;
+        updateConnectionButton();
+        addChatMessage(`Microcontrolador seleccionado: ${getMicrocontrollerName(selectedMicrocontroller)}`, 'system');
+    });
+    
     connectBtn.addEventListener('click', toggleSerialConnection);
+    clearChatBtn.addEventListener('click', clearChat);
     
     // Verificar soporte para Web Serial API
     if (!('serial' in navigator)) {
         connectBtn.disabled = true;
-        connectBtn.textContent = '❌ Web Serial no soportado';
+        connectBtn.textContent = '❌ Web Serial no disponible';
         connectionStatus.textContent = 'Web Serial API no disponible';
         connectionStatus.style.color = '#ff4444';
+        addChatMessage('Web Serial API no disponible en este navegador', 'error');
     }
+}
+
+// Actualizar texto del botón de conexión
+function updateConnectionButton() {
+    const microName = getMicrocontrollerName(selectedMicrocontroller);
+    if (isConnected) {
+        connectBtn.textContent = `🔌 Desconectar ${microName}`;
+    } else {
+        connectBtn.textContent = `🔌 Conectar ${microName}`;
+    }
+}
+
+// Obtener nombre del microcontrolador
+function getMicrocontrollerName(type) {
+    const names = {
+        'arduino': 'Arduino',
+        'esp32': 'ESP32',
+        'microbit': 'Micro:bit',
+        'raspberrypi': 'Raspberry Pi Pico',
+        'otro': 'Microcontrolador'
+    };
+    return names[type] || 'Microcontrolador';
 }
 
 // Conectar/desconectar puerto serie
@@ -133,16 +198,20 @@ async function connectSerial() {
         writer = serialPort.writable.getWriter();
         
         isConnected = true;
-        connectBtn.textContent = '🔌 Desconectar ESP32';
+        updateConnectionButton();
         connectBtn.style.backgroundColor = '#ff4444';
         connectionStatus.textContent = 'Conectado';
         connectionStatus.style.color = '#44ff44';
         
-        console.log('Conectado al ESP32');
+        const microName = getMicrocontrollerName(selectedMicrocontroller);
+        console.log(`Conectado al ${microName}`);
+        addChatMessage(`Conectado al ${microName}`, 'system');
         
     } catch (error) {
         console.error('Error al conectar:', error);
-        showError('Error al conectar con ESP32: ' + error.message);
+        const microName = getMicrocontrollerName(selectedMicrocontroller);
+        showError(`Error al conectar con ${microName}: ` + error.message);
+        addChatMessage('Error de conexión: ' + error.message, 'error');
     }
 }
 
@@ -160,22 +229,24 @@ async function disconnectSerial() {
         }
         
         isConnected = false;
-        connectBtn.textContent = '🔌 Conectar ESP32';
+        updateConnectionButton();
         connectBtn.style.backgroundColor = '#2196f3';
         connectionStatus.textContent = 'Desconectado';
         connectionStatus.style.color = '#666';
         
-        console.log('Desconectado del ESP32');
+        const microName = getMicrocontrollerName(selectedMicrocontroller);
+        console.log(`Desconectado del ${microName}`);
+        addChatMessage(`Desconectado del ${microName}`, 'system');
         
     } catch (error) {
         console.error('Error al desconectar:', error);
     }
 }
 
-// Enviar datos al ESP32
-async function sendToESP32(data) {
+// Enviar datos al microcontrolador
+async function sendToMicrocontroller(data) {
     if (!isConnected || !writer) {
-        console.warn('No hay conexión con ESP32');
+        console.warn('No hay conexión con microcontrolador');
         return;
     }
     
@@ -183,11 +254,15 @@ async function sendToESP32(data) {
         const message = data + '\n';
         const encoder = new TextEncoder();
         await writer.write(encoder.encode(message));
-        console.log('Enviado al ESP32:', data);
+        
+        const microName = getMicrocontrollerName(selectedMicrocontroller);
+        console.log(`Enviado al ${microName}:`, data);
+        addChatMessage(`Enviado: ${data}`, 'sent');
         
     } catch (error) {
         console.error('Error al enviar datos:', error);
-        showError('Error al enviar datos al ESP32');
+        showError('Error al enviar datos al microcontrolador');
+        addChatMessage('Error al enviar: ' + error.message, 'error');
     }
 }
 
@@ -216,9 +291,9 @@ async function predict() {
         // Actualizar interfaz
         updateUI(maxPrediction);
         
-        // Enviar al ESP32 si la confianza es alta
+        // Enviar al microcontrolador si la confianza es alta
         if (maxPrediction.probability > CONFIDENCE_THRESHOLD) {
-            await sendToESP32(maxPrediction.className);
+            await sendToMicrocontroller(maxPrediction.className);
         }
         
     } catch (error) {
@@ -262,6 +337,46 @@ function updateUI(prediction) {
         className.style.fontWeight = '500';
         className.style.textShadow = 'none';
     }
+}
+
+// Agregar mensaje al chat
+function addChatMessage(message, type = 'info') {
+    const timestamp = new Date().toLocaleTimeString('es-ES', { 
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+    });
+    
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `chat-message ${type}`;
+    
+    messageDiv.innerHTML = `
+        <span class="timestamp">[${timestamp}]</span>
+        <span class="message">${message}</span>
+    `;
+    
+    chatMessages.appendChild(messageDiv);
+    
+    // Scroll automático al último mensaje
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    
+    // Limitar número de mensajes (opcional)
+    const messages = chatMessages.querySelectorAll('.chat-message');
+    if (messages.length > 100) {
+        messages[0].remove();
+    }
+}
+
+// Limpiar chat
+function clearChat() {
+    chatMessages.innerHTML = `
+        <div class="chat-message system">
+            <span class="timestamp">[--:--:--]</span>
+            <span class="message">Chat limpiado</span>
+        </div>
+    `;
+    addChatMessage('Chat reiniciado', 'system');
 }
 
 // Mostrar errores

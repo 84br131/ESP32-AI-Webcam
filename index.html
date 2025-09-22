@@ -11,12 +11,32 @@
     <div class="container">
         <h1>Detector de Objetos</h1>
         <div class="content">
+            <!-- Configuración del modelo -->
+            <div class="model-config">
+                <div class="input-group">
+                    <label for="modelUrl">URL del modelo de Teachable Machine:</label>
+                    <input type="url" id="modelUrl" placeholder="https://teachablemachine.withgoogle.com/models/XXXXX/" class="url-input">
+                    <button id="loadModelBtn" class="load-model-btn">Cargar Modelo</button>
+                </div>
+            </div>
+            
             <div class="video-container">
                 <video id="webcam" autoplay muted playsinline></video>
                 <canvas id="canvas" style="display: none;"></canvas>
             </div>
             
             <div class="controls">
+                <div class="microcontroller-selection">
+                    <label for="microcontrollerSelect">Microcontrolador:</label>
+                    <select id="microcontrollerSelect" class="microcontroller-select">
+                        <option value="arduino">Arduino</option>
+                        <option value="esp32" selected>ESP32</option>
+                        <option value="microbit">Micro:bit</option>
+                        <option value="raspberrypi">Raspberry Pi Pico</option>
+                        <option value="otro">Otro</option>
+                    </select>
+                </div>
+                
                 <button id="connectBtn" class="connect-btn">
                     🔌 Conectar ESP32
                 </button>
@@ -31,9 +51,23 @@
                 <div id="confidence" class="confidence">Confianza: 0%</div>
             </div>
             
+            <!-- Chat de comandos -->
+            <div class="command-chat">
+                <div class="chat-header">
+                    <h3>📡 Comandos Enviados</h3>
+                    <button id="clearChatBtn" class="clear-chat-btn">Limpiar</button>
+                </div>
+                <div id="chatMessages" class="chat-messages">
+                    <div class="chat-message system">
+                        <span class="timestamp">[--:--:--]</span>
+                        <span class="message">Sistema iniciado. Esperando conexión...</span>
+                    </div>
+                </div>
+            </div>
+            
             <div class="loading" id="loading">
                 <div class="spinner"></div>
-                <p>Cargando modelo de IA...</p>
+                <p id="loadingText">Configurar modelo para comenzar...</p>
             </div>
         </div>
     </div>
