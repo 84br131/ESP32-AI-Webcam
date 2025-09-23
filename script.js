@@ -5,8 +5,10 @@ let isModelLoaded = false;
 let serialPort = null;
 let writer = null;
 let isConnected = false;
-let selectedMicrocontroller = 'esp32';
 let modelUrl = '';
+let isCameraOn = true;
+let lastDetectedClass = '';
+let stream = null;
 
 // Configuración
 const CONFIDENCE_THRESHOLD = 0.6; // 60%
@@ -18,7 +20,7 @@ const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 const modelUrlInput = document.getElementById('modelUrl');
 const loadModelBtn = document.getElementById('loadModelBtn');
-const microcontrollerSelect = document.getElementById('microcontrollerSelect');
+const cameraToggle = document.getElementById('cameraToggle');
 const connectBtn = document.getElementById('connectBtn');
 const connectionStatus = document.getElementById('connectionStatus');
 const className = document.getElementById('className');
@@ -96,7 +98,7 @@ async function setupCamera() {
     try {
         console.log('Configurando cámara...');
         
-        const stream = await navigator.mediaDevices.getUserMedia({
+        stream = await navigator.mediaDevices.getUserMedia({
             video: { 
                 width: 640, 
                 height: 480,
@@ -133,11 +135,7 @@ function setupEventListeners() {
         }
     });
     
-    microcontrollerSelect.addEventListener('change', (e) => {
-        selectedMicrocontroller = e.target.value;
-        updateConnectionButton();
-        addChatMessage(`Microcontrolador seleccionado: ${getMicrocontrollerName(selectedMicrocontroller)}`, 'system');
-    });
+    cameraToggle.addEventListener('click', toggleCamera);
     
     connectBtn.addEventListener('click', toggleSerialConnection);
     clearChatBtn.addEventListener('click', clearChat);
@@ -152,26 +150,55 @@ function setupEventListeners() {
     }
 }
 
-// Actualizar texto del botón de conexión
-function updateConnectionButton() {
-    const microName = getMicrocontrollerName(selectedMicrocontroller);
-    if (isConnected) {
-        connectBtn.textContent = `🔌 Desconectar ${microName}`;
+// Alternar cámara encendida/apagada
+async function toggleCamera() {
+    if (isCameraOn) {
+        // Apagar cámara
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+        }
+        video.srcObject = null;
+        isCameraOn = false;
+        cameraToggle.textContent = '📹 Encender Cámara';
+        cameraToggle.style.backgroundColor = '#4caf50';
+        
+        // Limpiar display
+        className.textContent = 'Cámara apagada';
+        confidence.textContent = 'Confianza: 0%';
+        
+        addChatMessage('Cámara apagada', 'system');
+        console.log('Cámara apagada');
+        
     } else {
-        connectBtn.textContent = `🔌 Conectar ${microName}`;
+        // Encender cámara
+        try {
+            await setupCamera();
+            isCameraOn = true;
+            cameraToggle.textContent = '📹 Apagar Cámara';
+            cameraToggle.style.backgroundColor = '#ff4444';
+            
+            // Reiniciar variables de detección
+            lastDetectedClass = '';
+            className.textContent = 'Inicializando...';
+            confidence.textContent = 'Confianza: 0%';
+            
+            addChatMessage('Cámara encendida', 'system');
+            console.log('Cámara encendida');
+            
+        } catch (error) {
+            console.error('Error al encender cámara:', error);
+            showError('Error al encender la cámara: ' + error.message);
+        }
     }
 }
 
-// Obtener nombre del microcontrolador
-function getMicrocontrollerName(type) {
-    const names = {
-        'arduino': 'Arduino',
-        'esp32': 'ESP32',
-        'microbit': 'Micro:bit',
-        'raspberrypi': 'Raspberry Pi Pico',
-        'otro': 'Microcontrolador'
-    };
-    return names[type] || 'Microcontrolador';
+// Actualizar texto del botón de conexión
+function updateConnectionButton() {
+    if (isConnected) {
+        connectBtn.textContent = '🔌 Desconectar';
+    } else {
+        connectBtn.textContent = '🔌 Conectar Microcontrolador';
+    }
 }
 
 // Conectar/desconectar puerto serie
@@ -203,14 +230,12 @@ async function connectSerial() {
         connectionStatus.textContent = 'Conectado';
         connectionStatus.style.color = '#44ff44';
         
-        const microName = getMicrocontrollerName(selectedMicrocontroller);
-        console.log(`Conectado al ${microName}`);
-        addChatMessage(`Conectado al ${microName}`, 'system');
+        console.log('Conectado al microcontrolador');
+        addChatMessage('Conectado al microcontrolador', 'system');
         
     } catch (error) {
         console.error('Error al conectar:', error);
-        const microName = getMicrocontrollerName(selectedMicrocontroller);
-        showError(`Error al conectar con ${microName}: ` + error.message);
+        showError('Error al conectar con microcontrolador: ' + error.message);
         addChatMessage('Error de conexión: ' + error.message, 'error');
     }
 }
@@ -234,9 +259,8 @@ async function disconnectSerial() {
         connectionStatus.textContent = 'Desconectado';
         connectionStatus.style.color = '#666';
         
-        const microName = getMicrocontrollerName(selectedMicrocontroller);
-        console.log(`Desconectado del ${microName}`);
-        addChatMessage(`Desconectado del ${microName}`, 'system');
+        console.log('Desconectado del microcontrolador');
+        addChatMessage('Desconectado del microcontrolador', 'system');
         
     } catch (error) {
         console.error('Error al desconectar:', error);
@@ -255,8 +279,7 @@ async function sendToMicrocontroller(data) {
         const encoder = new TextEncoder();
         await writer.write(encoder.encode(message));
         
-        const microName = getMicrocontrollerName(selectedMicrocontroller);
-        console.log(`Enviado al ${microName}:`, data);
+        console.log('Enviado al microcontrolador:', data);
         addChatMessage(`Enviado: ${data}`, 'sent');
         
     } catch (error) {
@@ -268,7 +291,7 @@ async function sendToMicrocontroller(data) {
 
 // Realizar predicciones en tiempo real
 async function predict() {
-    if (!isModelLoaded || !model) {
+    if (!isModelLoaded || !model || !isCameraOn) {
         requestAnimationFrame(predict);
         return;
     }
@@ -291,9 +314,18 @@ async function predict() {
         // Actualizar interfaz
         updateUI(maxPrediction);
         
-        // Enviar al microcontrolador si la confianza es alta
+        // Enviar al microcontrolador solo si la clase cambió y la confianza es alta
         if (maxPrediction.probability > CONFIDENCE_THRESHOLD) {
-            await sendToMicrocontroller(maxPrediction.className);
+            const currentClass = maxPrediction.className;
+            if (currentClass !== lastDetectedClass) {
+                await sendToMicrocontroller(currentClass);
+                lastDetectedClass = currentClass;
+            }
+        } else {
+            // Si la confianza es baja, resetear la última clase detectada
+            if (lastDetectedClass !== '') {
+                lastDetectedClass = '';
+            }
         }
         
     } catch (error) {

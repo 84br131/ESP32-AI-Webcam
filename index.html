@@ -21,24 +21,18 @@
             </div>
             
             <div class="video-container">
+                <div class="camera-controls">
+                    <button id="cameraToggle" class="camera-toggle">
+                        📹 Apagar Cámara
+                    </button>
+                </div>
                 <video id="webcam" autoplay muted playsinline></video>
                 <canvas id="canvas" style="display: none;"></canvas>
             </div>
             
             <div class="controls">
-                <div class="microcontroller-selection">
-                    <label for="microcontrollerSelect">Microcontrolador:</label>
-                    <select id="microcontrollerSelect" class="microcontroller-select">
-                        <option value="arduino">Arduino</option>
-                        <option value="esp32" selected>ESP32</option>
-                        <option value="microbit">Micro:bit</option>
-                        <option value="raspberrypi">Raspberry Pi Pico</option>
-                        <option value="otro">Otro</option>
-                    </select>
-                </div>
-                
                 <button id="connectBtn" class="connect-btn">
-                    🔌 Conectar ESP32
+                    🔌 Conectar Microcontrolador
                 </button>
                 <div id="connectionStatus" class="status">Desconectado</div>
             </div>

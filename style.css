@@ -125,6 +125,33 @@ h1 {
     background: #000;
 }
 
+.camera-controls {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    z-index: 10;
+}
+
+.camera-toggle {
+    background: #ff4444;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-family: 'Poppins', sans-serif;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(10px);
+}
+
+.camera-toggle:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+}
+
 #webcam {
     width: 100%;
     max-width: 640px;
@@ -139,38 +166,6 @@ h1 {
     flex-direction: column;
     align-items: center;
     gap: 15px;
-}
-
-.microcontroller-selection {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-}
-
-.microcontroller-selection label {
-    font-weight: 600;
-    color: #4a5568;
-    font-size: 1rem;
-}
-
-.microcontroller-select {
-    padding: 10px 16px;
-    border: 2px solid #e2e8f0;
-    border-radius: 10px;
-    font-size: 1rem;
-    font-family: 'Poppins', sans-serif;
-    background: white;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    min-width: 180px;
-    text-align: center;
-}
-
-.microcontroller-select:focus {
-    outline: none;
-    border-color: #2196f3;
-    box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.1);
 }
 
 .connect-btn {
@@ -461,10 +456,14 @@ h1 {
         font-size: 0.9rem;
     }
     
-    .microcontroller-select {
-        min-width: 150px;
-        padding: 8px 12px;
-        font-size: 0.9rem;
+    .camera-controls {
+        top: 10px;
+        right: 10px;
+    }
+    
+    .camera-toggle {
+        padding: 6px 12px;
+        font-size: 0.8rem;
     }
     
     #webcam {
@@ -541,10 +540,9 @@ h1 {
         font-size: 0.85rem;
     }
     
-    .microcontroller-select {
-        min-width: 130px;
-        padding: 6px 10px;
-        font-size: 0.85rem;
+    .camera-toggle {
+        padding: 5px 10px;
+        font-size: 0.75rem;
     }
     
     .class-name {
